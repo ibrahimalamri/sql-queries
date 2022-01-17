@@ -1,118 +1,195 @@
-  
-  
- --change date format 
+-- the data contains buyers of real estate (individuals \ government and commercial entities)
+-- the main goal is to separate individual buyers from commercial and government entities into a new table
+-- and do some cleaning along the way 
+-- extracting the data we need from the orignal data source into a new table 
+SELECT neighborhood,
+       building_class_category,
+       tax_class,
+       address,
+       year_built,
+       residential_units,
+       commercial_units,
+       total_units,
+       ownertype,
+       ownername,
+       tax_class_at_sale,
+       building_class_at_sale,
+       sale_price,
+       sale_date,
+       year_of_sale
+INTO   brooklyn_newtable
+FROM   brooklyn_realstate
 
+------------------------------------------------------------------------
+-- assinging the approprite data type to our coulmns 
+SELECT DISTINCT year_built
+FROM   brooklyn_newtable
 
-  select saledatecoverted, convert(date,saledate)
-  from dbo.housing 
+SELECT Cast(year_built AS SMALLINT)
+FROM   brooklyn_newtable
 
+UPDATE brooklyn_newtable
+SET    year_built = Cast(year_built AS SMALLINT)
 
-ALTER TABLE dbo.housing
-ADD saledatecoverted date;
+ALTER TABLE brooklyn_newtable
+  ADD year_built_int INT;
 
-update dbo.housing
-set saledatecoverted = convert(date,saledate)
+UPDATE brooklyn_newtable
+SET    year_built_int = Cast(year_built AS INT)
 
+UPDATE brooklyn_newtable
+SET    residential_units = Cast(residential_units AS INT)
 
------------------------------------------------------------------------------------------------
+ALTER TABLE brooklyn_newtable
+  ADD residential_units_int INT;
 
+UPDATE brooklyn_newtable
+SET    residential_units_int = Cast(residential_units AS INT)
 
--- populate property address data with parcelID 
+UPDATE brooklyn_newtable
+SET    commercial_units = Cast(commercial_units AS INT)
 
-select a.ParcelID, a.propertyaddress, b.ParcelID, b.propertyaddress,
-isnull(a.propertyaddress, b.propertyaddress)
-from dbo.housing a
-join dbo.housing b
-ON a.ParcelID = b.ParcelID
-and a.UniqueID <> b.UniqueID
-where a.propertyaddress is null 
+ALTER TABLE brooklyn_newtable
+  ADD commercial_units_int INT;
 
-update a 
-set propertyaddress = isnull(a.propertyaddress, b.propertyaddress)
-from dbo.housing a
-join dbo.housing b
-ON a.ParcelID = b.ParcelID
-and a.UniqueID <> b.UniqueID
-where a.propertyaddress is null
+UPDATE brooklyn_newtable
+SET    commercial_units_int = Cast(commercial_units AS INT)
 
-------------------------------------------------------------------------------------------
+UPDATE brooklyn_newtable
+SET    total_units = Cast(total_units AS INT)
 
--- breaking out the address 
+ALTER TABLE brooklyn_newtable
+  ADD total_units_int INT;
 
-SELECT 
-SUBSTRING(propertyaddress, 1, CHARINDEX(',', propertyaddress) -1 ) AS ADDRESS
-, SUBSTRING(propertyaddress, CHARINDEX(',', propertyaddress) +1 , LEN(propertyaddress)) AS CITY
-from dbo.housing 
+UPDATE brooklyn_newtable
+SET    total_units_int = Cast(total_units AS INT)
 
-SELECT propertyaddress
-from dbo.housing 
+UPDATE brooklyn_newtable
+SET    sale_price = Cast(sale_price AS BIGINT)
 
+ALTER TABLE brooklyn_newtable
+  ADD sale_price_int BIGINT;
 
-ALTER TABLE dbo.housing
-ADD propertysplitaddress nvarchar(255);
+UPDATE brooklyn_newtable
+SET    sale_price_int = Cast(sale_price AS BIGINT)
 
-update dbo.housing
-SET propertysplitaddress = SUBSTRING(propertyaddress, 1, CHARINDEX(',', propertyaddress) -1 )
+UPDATE brooklyn_newtable
+SET    sale_date = Cast(sale_date AS DATE)
 
-ALTER TABLE dbo.housing
-ADD propertysplitcity nvarchar(255);
+ALTER TABLE brooklyn_newtable
+  ADD saledate DATE;
 
-update dbo.housing
-SET propertysplitcity = SUBSTRING(propertyaddress, CHARINDEX(',', propertyaddress) +1 , LEN(propertyaddress))
+UPDATE brooklyn_newtable
+SET    saledate = Cast(sale_date AS DATE)
 
-select 
-PARSENAME(replace(owneraddress, ',', '.') ,3),
-PARSENAME(replace(owneraddress, ',', '.') ,2),
-PARSENAME(replace(owneraddress, ',', '.') ,1)
-from dbo.housing
+-----------------------------------------------------
+-- standrizing data in each coulomn (if needed)
+SELECT DISTINCT building_class_category
+FROM   brooklyn_newtable
+ORDER  BY building_class_category DESC
 
+UPDATE brooklyn_newtable
+SET    building_class_category = Trim(building_class_category)
 
-ALTER TABLE dbo.housing
-ADD ownersplitstate nvarchar(255);
+SELECT DISTINCT Replace(building_class_category, '  ', '_')
+FROM   brooklyn_newtable
 
-update dbo.housing
-set ownersplitstate = PARSENAME(replace(owneraddress, ',', '.') ,1)
+UPDATE brooklyn_newtable
+SET    building_class_category = Replace(building_class_category, '  ', '_')
 
+UPDATE brooklyn_newtable
+SET    building_class_category = Replace(building_class_category, '_', ' ')
 
-ALTER TABLE dbo.housing
-ADD ownersplitcity nvarchar(255);
+SELECT DISTINCT building_class_category
+FROM   brooklyn_newtable
 
-update dbo.housing
-set ownersplitcity = PARSENAME(replace(owneraddress, ',', '.') ,2)
+----------------------
+USE mybase;
 
+SELECT Replace(address, '  ', '_')
+FROM   dbo.brooklyn_newtable
 
-ALTER TABLE dbo.housing
-ADD ownersplitaddress nvarchar(255);
+UPDATE brooklyn_newtable
+SET    address = Replace(address, '  ', '_')
 
-update dbo.housing
-set ownersplitaddress = PARSENAME(replace(owneraddress, ',', '.') ,3)
+UPDATE brooklyn_newtable
+SET    address = Replace(address, '_', ' ')
 
+UPDATE brooklyn_newtable
+SET    address = Trim(address)
 
-----------------------------------------------------------------------------------------------------
+SELECT DISTINCT building_class_at_sale
+FROM   brooklyn_newtable
 
--- remove inconsistencies from the SoldAsVacant column 
+---- seprating indvisual buyers into a new coulmn called (owner) from commerical and gov entities 
+ALTER TABLE brooklyn_newtable
+  ADD owner NVARCHAR(255);
 
-select distinct SoldAsVacant
-from dbo.housing
+UPDATE brooklyn_newtable
+SET    owner = ownername
+WHERE  ownername NOT LIKE '% LLP%'
+       AND ownername NOT LIKE '% LP%'
+       AND ownername NOT LIKE '% llc%'
+       AND ownername NOT LIKE '% corp%'
+       AND ownername NOT LIKE '% inc%'
+       AND ownername NOT LIKE '% ltd%'
+       AND ownername NOT LIKE '% holdings%'
+       AND ownername NOT LIKE '% group%'
+       AND ownername LIKE '%,%'
+       AND ownername NOT LIKE '%0%'
+       AND ownername NOT LIKE '%1%'
+       AND ownername NOT LIKE '%2%'
+       AND ownername NOT LIKE '%3%'
+       AND ownername NOT LIKE '%4%'
+       AND ownername NOT LIKE '%5%'
+       AND ownername NOT LIKE '%6%'
+       AND ownername NOT LIKE '%7%'
+       AND ownername NOT LIKE '%8%'
+       AND ownername NOT LIKE '%9%'
 
-select distinct SoldAsVacant, count(SoldAsVacant)
-from dbo.housing
-group by SoldAsVacant
-order by 2 
+-- sepreate owner first and last name into two seprate columns 
+SELECT owner,
+       LEFT(owner, Charindex(',', owner) - 1)           AS last_name,
+       RIGHT(owner, Len(owner) - Charindex(',', owner)) AS first_name
+FROM   brooklyn_newtable
+WHERE  owner IS NOT NULL
 
+ALTER TABLE brooklyn_newtable
+  ADD last_name NVARCHAR(255);
 
+UPDATE brooklyn_newtable
+SET    last_name = LEFT(owner, Charindex(',', owner) - 1)
 
+ALTER TABLE brooklyn_newtable
+  ADD first_name NVARCHAR(255);
 
-select SoldAsVacant
-, CASE WHEN SoldAsVacant = 'Y' THEN 'Yes' 
-       WHEN SoldAsVacant = 'N' THEN 'No'
-	   ELSE SoldAsVacant
-	   END
-from dbo.housing
+UPDATE brooklyn_newtable
+SET    first_name = RIGHT(owner, Len(owner) - Charindex(',', owner))
 
+USE mybase;
 
-UPDATE dbo.housing
-SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes' 
-       WHEN SoldAsVacant = 'N' THEN 'No'
-	   ELSE SoldAsVacant
-	   END
+SELECT *
+FROM   brooklyn_newtable
+WHERE  first_name LIKE '% %'
+
+UPDATE brooklyn_newtable
+SET    first_name = Ltrim(first_name)
+
+-- import the final revision of the data into a new table
+SELECT neighborhood,
+       building_class_category,
+       tax_class,
+       address,
+       year_built_int,
+       residential_units_int,
+       commercial_units_int,
+       total_units_int,
+       tax_class_at_sale,
+       building_class_at_sale,
+       sale_price_int,
+       saledate,
+       first_name,
+       last_name
+INTO   individual_buyers
+FROM   brooklyn_newtable
+WHERE  first_name IS NOT NULL 
